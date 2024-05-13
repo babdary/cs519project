@@ -1,7 +1,7 @@
 ## Serial Implementations
-#### The implementations here will be used as a baseline for performance comparison
+### The implementations here will be used as a baseline for performance comparison
 
-### Each implementation here is based on an open-source repo, the sources will be added below.
+#### Each implementation here is based on an open-source repo, the sources will be added below.
 
 ##### Version 1
 https://github.com/cy94/floyd-warshall
