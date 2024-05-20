@@ -19,6 +19,7 @@
 # include <iostream>
 # include <fstream>
 # include <string>
+#include <chrono>
 
 using namespace::std;
 
@@ -119,6 +120,7 @@ string obtainPath(int i, int j)
 
 int main(int argc, char** argv)
 {
+	auto start = std::chrono::high_resolution_clock::now();
 	if(argc < 2)
 	{
 		cout << "Check README for usage." << endl;
@@ -171,7 +173,7 @@ int main(int argc, char** argv)
 		parent[i][i] = i;
 	}
 	
-	
+	auto floyd_start = std::chrono::high_resolution_clock::now();
 	// Actual Floyd Warshall Algorithm
 	for (k=0; k<V; k++)
 	{
@@ -199,23 +201,40 @@ int main(int argc, char** argv)
 		}
 	}
 	
-	
+	auto floyd_end = std::chrono::high_resolution_clock::now();
+
+	ofstream outfile("floyd_warshall_output.txt");
+
+	// Check if file opening was successful
+	if (!outfile.is_open()) {
+		cerr << "Error opening output file!" << endl;
+		return 1; // Exit with an error code
+	}
+
+
 	// Print all paths
-	cout << "All Pairs Shortest Paths : \n\n";
+	outfile << "All Pairs Shortest Paths : \n\n";
 	for (i=0; i<V; i++)
 	{
-		cout << endl;
+		outfile << endl;
 		for (j=0; j<V; j++)
 		{
-			cout << "From : " << i+1 << " To : " << j+1 << endl;
-			cout << "Path : " << 1+i << obtainPath(i,j) << j+1 << endl;
-			cout << "Distance : " << dist[i][j].getWeight() << endl << endl;
+			outfile << "From : " << i+1 << " To : " << j+1 << endl;
+			outfile << "Path : " << 1+i << obtainPath(i,j) << j+1 << endl;
+			outfile << "Distance : " << dist[i][j].getWeight() << endl << endl;
 		}
 	}
-	
+	outfile.close();
+
 	delete [] dist;
 	delete [] parent;
-	
+	auto end = std::chrono::high_resolution_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+	auto elapsed_floyd = std::chrono::duration_cast<std::chrono::nanoseconds>(floyd_end - floyd_start);
+
+    printf("Total Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
+    printf("Floyd Time measured: %.3f seconds.\n", elapsed_floyd.count() * 1e-9);
+
 	return 0;
 }
 
