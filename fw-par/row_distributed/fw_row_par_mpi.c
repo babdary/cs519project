@@ -75,19 +75,19 @@ int main(int argc, char *argv[])
             }
         }
         fclose(file);
-        for (int i = 0; i < num_of_vertices; i++)
-        {
-            for (int j = 0; j < num_of_vertices; j++)
-            {
-                printf("row %d = %lf\n", i, matrix[i * num_of_vertices + j]);
-            }
-        }
+        // for (int i = 0; i < num_of_vertices; i++)
+        // {
+        //     for (int j = 0; j < num_of_vertices; j++)
+        //     {
+        //         printf("row %d = %lf\n", i, matrix[i * num_of_vertices + j]);
+        //     }
+        // }
     }
 
     
     MPI_Bcast(&num_of_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD); // let each proc know the num of vertices
     int local_iter = num_of_vertices / comm_sz;                 // number of rows each proc will handle
-    printf("local_iter: %d\n", local_iter);
+    // printf("local_iter: %d\n", local_iter);
     /*Read Adjacency Matrix of the Weighted Directed Graph from Input File*/
     double *local_adj_matrix = (double *)malloc(local_iter * num_of_vertices * sizeof(double));
   
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
         int i,j;
         for(i = 0; i < num_of_vertices; i++){
             for(j = 0; j < num_of_vertices; j++){
-                printf("%lf", matrix[i* num_of_vertices +j]);
+                printf("| %lf |", matrix[i* num_of_vertices +j]);
             }
             printf("\n");
         }
