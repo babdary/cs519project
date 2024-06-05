@@ -8,7 +8,17 @@
 
 
 
-void floyd warshall(int num_of_vertices){
+void floyd warshall(int num_of_vertices, int local_iter, double *local_adj_matrix, int my_rank, int comm_sz){
+    
+    for(int n = 0; n < num_of_vertices; n++){
+
+        int root = n/local_iter;
+        double *node_path = (double *)malloc(num_of_vertices*sizeof(double));
+
+        if(my_rank = root){
+            memcpy(node_path, &local_adj_matrix[(n%local_iter)*num_of_vertices], num_of_vertices*sizeof(double));
+        }
+    }
 
 }
 
@@ -62,9 +72,11 @@ int main(int argc, char *argv[])
     MPI_Bcast(&num_of_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD); // let each proc know the num of vertices
     int local_iter = num_of_vertices / comm_sz;                 // number of rows each proc will handle
     printf("local_iter: %d\n", local_iter);
-
-    double *local_adj_matrix = (double *)malloc(local_iter * num_of_vertices * sizeof(double));
     /*Read Adjacency Matrix of the Weighted Directed Graph from Input File*/
+    double *local_adj_matrix = (double *)malloc(local_iter * num_of_vertices * sizeof(double));
+   
+    MPI_Scatter(matrix, local_iter * number_of_vertices, MPI_DOUBLE, local_adj_matrix, local_iter * number_of_vertices, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     MPI_Finalize();
     return 0;
 
