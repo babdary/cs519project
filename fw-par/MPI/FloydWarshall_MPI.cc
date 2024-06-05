@@ -68,20 +68,19 @@ int main(int argc, char** argv)
     for (int i = 0; i < V; i++)
         dist[i][i] = 0; //dist from each node to itself is 0
 
-    int u, v;
-    double w; 
+    int source, target;
+    double weight; 
     //store the weights in a matrix
     //this can be read from the input file, but that's inefficent
     for (int i = 0; i < E; i++) {
-        ifile >> u >> v >> w;
-        dist[u - 1][v - 1] = min(w, dist[u - 1][v - 1]); //-1 since input starts from 1 not 0
+        ifile >> source >> target >> weight;
+        dist[source - 1][target - 1] = min(weight, dist[source - 1][target - 1]); //-1 since input starts from 1 not 0
     }
     ifile.close();
     // 8 + 4 -1 / 4 = 2
     int block_size = (V + size - 1) / size;  // Calculate block size +size -1 is used to handle boundary conditions
 
     // Allocate local data for each process
-    // Replace with malloc if we need c
     vector<vector<double>> local_dist(block_size, vector<double>(V, INF));
     //
     vector<double> local_data(block_size * (V+1), INF);
