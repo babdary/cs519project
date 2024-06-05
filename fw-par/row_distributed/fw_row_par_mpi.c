@@ -7,19 +7,33 @@
 #include <math.h>
 
 
-
-void floyd warshall(int num_of_vertices, int local_iter, double *local_adj_matrix, int my_rank, int comm_sz){
+void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matrix, int my_rank, int comm_sz){
     
-    for(int n = 0; n < num_of_vertices; n++){
+    int i,j,k;
+    double dist;
+    double *row_k =NULL;
 
-        int root = n/local_iter;
-        double *node_path = (double *)malloc(num_of_vertices*sizeof(double));
+    for(k = 0; k < num_of_vertices; k++){
 
-        if(my_rank = root){
-            memcpy(node_path, &local_adj_matrix[(n%local_iter)*num_of_vertices], num_of_vertices*sizeof(double));
+        int root = k/local_iter;
+        row_k = (double *)malloc(num_of_vertices*sizeof(double));
+
+        if(my_rank == root){
+            for(int j = 0; j < num_of_vertices; j++){
+                row_k[j] = local_adj_matrix[(k % local_iter)* num_of_vertices +j];
+            }
+        }
+        MPI_Bcast(row_k, num_of_vertices,MPI_DOUBLE, root,MPI_COMM_WORLD);
+        for(i = 0; i < local_iter; i++){
+            for(j = 0; j < num_of_vertices; j++){
+                dist = local_adj_matrix[i * num_of_vertices + k] + row_k[j];
+                if(local_adj_matrix[i * num_of_vertices + j] > dist){
+                    local_adj_matrix[i * num_of_vertices + j] = dist;
+                }
+            }
         }
     }
-
+    free(row_k);
 }
 
 int main(int argc, char *argv[])
@@ -35,6 +49,7 @@ int main(int argc, char *argv[])
 
     int num_of_vertices;
     char *input_file = argv[1];
+    double *matrix = NULL;
 
     if (my_rank == 0)
     {
@@ -50,7 +65,8 @@ int main(int argc, char *argv[])
         fscanf(file, "%d", &num_of_vertices);
         fprintf(stderr, "number of vertices = %d\n", num_of_vertices);
 
-        double *matrix = (double *)malloc(num_of_vertices * num_of_vertices * sizeof(double));
+ 
+        matrix = (double *)malloc(num_of_vertices * num_of_vertices * sizeof(double));
         for (int ii = 0; ii < num_of_vertices; ii++)
         {
             for (int jj = 0; jj < num_of_vertices; jj++)
@@ -74,8 +90,14 @@ int main(int argc, char *argv[])
     printf("local_iter: %d\n", local_iter);
     /*Read Adjacency Matrix of the Weighted Directed Graph from Input File*/
     double *local_adj_matrix = (double *)malloc(local_iter * num_of_vertices * sizeof(double));
-   
-    MPI_Scatter(matrix, local_iter * number_of_vertices, MPI_DOUBLE, local_adj_matrix, local_iter * number_of_vertices, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  
+    MPI_Scatter(matrix, local_iter * num_of_vertices, MPI_DOUBLE, local_adj_matrix, local_iter * num_of_vertices, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    
+    /*Call Floyd Warshall*/
+    floyd_warshall(num_of_vertices,local_iter,local_adj_matrix,my_rank,comm_sz);
+
+    /*Gather results*/
+    MPI_Gather(local_adj_matrix, local_iter * num_of_vertices)
 
     MPI_Finalize();
     return 0;
