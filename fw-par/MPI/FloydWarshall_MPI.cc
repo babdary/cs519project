@@ -58,73 +58,105 @@ int main(int argc, char** argv)
 
     ifile >> V >> E;
 
+    if (V < size) {
+        cout << "Processes cannot be greater than vertices. Vertices: " << V << " Comm size: " << size << endl;
+        MPI_Finalize();
+        return -1;
+    }
+    // allocate global data
     vector<vector<double>> dist(V, vector<double>(V, INF));
     for (int i = 0; i < V; i++)
-        dist[i][i] = 0;
+        dist[i][i] = 0; //dist from each node to itself is 0
 
     int u, v;
-    double w;
+    double w; 
+    //store the weights in a matrix
+    //this can be read from the input file, but that's inefficent
     for (int i = 0; i < E; i++) {
         ifile >> u >> v >> w;
-        dist[u - 1][v - 1] = w;
+        dist[u - 1][v - 1] = min(w, dist[u - 1][v - 1]); //-1 since input starts from 1 not 0
     }
     ifile.close();
+    // 8 + 4 -1 / 4 = 2
+    int block_size = (V + size - 1) / size;  // Calculate block size +size -1 is used to handle boundary conditions
 
-    int rows_per_process = V / size;
-    int start_row = rank * rows_per_process;
-    int end_row = (rank + 1) * rows_per_process;
-
-    // Handle the case where V is not perfectly divisible by size
-    if (rank == size - 1) {
-        end_row = V;
+    // Allocate local data for each process
+    // Replace with malloc if we need c
+    vector<vector<double>> local_dist(block_size, vector<double>(V, INF));
+    //
+    vector<double> local_data(block_size * (V+1), INF);
+    int cc = 0;
+    // Distribute rows in a block cyclic manner
+    for (int i = 0; i < block_size; i++) {
+        int global_row = i * size + rank;
+        if (global_row < V) {
+            local_dist[i] = dist[global_row];
+            for (int j = 0; j < V; j++) {
+                local_data[i * V + j+cc] = dist[global_row][j];
+            }
+            local_data[V+i*V+cc] = global_row;
+            cc++;
+        }
     }
-
+    
     // Perform the local computation for this process's portion of the matrix
     for (int k = 0; k < V; k++) {
-        // Calculate the root rank for the current k
-        int root_rank = k / rows_per_process;
-        if (root_rank >= size) {
-            root_rank = size - 1;
-        }
-
+        // Calculate the source rank for the current k
+        int root_rank = k % size;
+        
         // Broadcast the k-th row to all processes
-        vector<double> k_row(V);
-        if (rank == root_rank) {
-            k_row = dist[k];
+        vector<double> k_row(V, INF);
+        if ((k / size) < block_size && (k % size) == rank) {
+            k_row = local_dist[k / size];
         }
         MPI_Bcast(&k_row[0], V, MPI_DOUBLE, root_rank, MPI_COMM_WORLD);
 
-        for (int i = start_row; i < end_row; i++) {
-            for (int j = 0; j < V; j++) {
-                if (dist[i][j] > dist[i][k] + k_row[j]) {
-                    dist[i][j] = dist[i][k] + k_row[j];
+        for (int i = 0; i < block_size; i++) {
+            int global_row = i * size + rank;
+            if (global_row < V) {
+                for (int j = 0; j < V; j++) {
+                    if (local_dist[i][j] > local_dist[i][k] + k_row[j]) {
+                        local_dist[i][j] = local_dist[i][k] + k_row[j];
+                    }
                 }
             }
         }
     }
 
-    // Prepare the buffer for gathering the results
-    vector<double> local_data;
-    for (int i = start_row; i < end_row; i++) {
-        local_data.insert(local_data.end(), dist[i].begin(), dist[i].end());
+    // Update local_data from local_dist before gathering
+    cc = 0;
+    for (int i = 0; i < block_size; i++) {
+        int global_row = i * size + rank;
+        if (global_row < V) {
+            for (int j = 0; j < V; j++) {
+                local_data[i * V + j+cc] = local_dist[i][j];
+            }
+            cc++;
+        }
     }
 
+    // Prepare the buffer for gathering the results
     vector<double> global_data;
     if (rank == 0) {
-        global_data.resize(V * V);
+        global_data.resize(V * (V+1), INF);
     }
 
     // Gather the results back to the root process
-    MPI_Gather(local_data.data(), local_data.size(), MPI_DOUBLE, 
-               global_data.data(), local_data.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(local_data.data(), block_size * (V+1), MPI_DOUBLE, 
+               global_data.data(), block_size * (V+1), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
         // Convert the gathered 1D data into a 2D matrix
-        vector<vector<double>> global_dist(V, vector<double>(V));
+        cc=0;
+
+
+        vector<vector<double>> global_dist(V, vector<double>(V, INF));
         for (int i = 0; i < V; i++) {
+            //cout << "Row index: " << global_data[i*V+V+cc] << "Row: " << global_data[i * V + j] << endl;
             for (int j = 0; j < V; j++) {
-                global_dist[i][j] = global_data[i * V + j];
+                global_dist[global_data[i*V+V+cc]][j] = global_data[i * V + j +cc];
             }
+            cc++;
         }
 
         // Write the result matrix to a file
