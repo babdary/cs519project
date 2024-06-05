@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
+#include <time.h>
 
 void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matrix, int my_rank, int comm_sz){
     
@@ -39,6 +39,12 @@ void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matri
 int main(int argc, char *argv[])
 {
 
+    clock_t fw_start, fw_end, start, end;
+
+    double wall_clock_time, fw_time;
+
+    start = clock();
+
     int my_rank, comm_sz;
     FILE *file;
 
@@ -63,7 +69,7 @@ int main(int argc, char *argv[])
             printf("Cannot open input file!!!");
         }
         fscanf(file, "%d", &num_of_vertices);
-        fprintf(stderr, "number of vertices = %d\n", num_of_vertices);
+        //fprintf(stderr, "number of vertices = %d\n", num_of_vertices);
 
  
         matrix = (double *)malloc(num_of_vertices * num_of_vertices * sizeof(double));
@@ -95,7 +101,12 @@ int main(int argc, char *argv[])
     
     
     /*Call Floyd Warshall*/
+    fw_start = clock();
     floyd_warshall(num_of_vertices,local_iter,local_adj_matrix,my_rank,comm_sz);
+    fw_end = clock();
+    fw_time = ((double)(fw_end-fw_start)) /CLOCKS_PER_SEC;
+
+
 
     /*Gather results*/
     MPI_Gather(local_adj_matrix, local_iter * num_of_vertices, MPI_DOUBLE, matrix, local_iter * num_of_vertices, MPI_DOUBLE, 0 , MPI_COMM_WORLD);
@@ -105,14 +116,21 @@ int main(int argc, char *argv[])
         int i,j;
         for(i = 0; i < num_of_vertices; i++){
             for(j = 0; j < num_of_vertices; j++){
-                printf("| %lf |", matrix[i* num_of_vertices +j]);
+                printf("| %lf ", matrix[i* num_of_vertices +j]);
             }
-            printf("\n");
+            printf("|\n");
         }
         free(matrix);
     }
     free(local_adj_matrix);
     MPI_Finalize();
+
+
+    end = clock();
+    wall_clock_time = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Time Elapsed:%f\n", wall_clock_time);
+    printf("Floyd Warshall Algorithm Elapsed: %f\n", fw_time);
+    printf("------------------------------------------------------\n");
     return 0;
 
 }
