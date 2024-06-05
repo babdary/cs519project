@@ -93,12 +93,25 @@ int main(int argc, char *argv[])
   
     MPI_Scatter(matrix, local_iter * num_of_vertices, MPI_DOUBLE, local_adj_matrix, local_iter * num_of_vertices, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     
+    
     /*Call Floyd Warshall*/
     floyd_warshall(num_of_vertices,local_iter,local_adj_matrix,my_rank,comm_sz);
 
     /*Gather results*/
-    MPI_Gather(local_adj_matrix, local_iter * num_of_vertices)
+    MPI_Gather(local_adj_matrix, local_iter * num_of_vertices, MPI_DOUBLE, matrix, local_iter * num_of_vertices, MPI_DOUBLE, 0 , MPI_COMM_WORLD);
 
+
+    if(my_rank==0){
+        int i,j;
+        for(i = 0; i < num_of_vertices; i++){
+            for(j = 0; j < num_of_vertices; j++){
+                printf("%lf", matrix[i* num_of_vertices +j]);
+            }
+            printf("\n");
+        }
+        free(matrix);
+    }
+    free(local_adj_matrix);
     MPI_Finalize();
     return 0;
 
