@@ -11,12 +11,11 @@ void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matri
     
     int i,j,k;
     double dist;
-    double *row_k =NULL;
+    double *row_k = (double *)malloc(num_of_vertices*sizeof(double));
 
     for(k = 0; k < num_of_vertices; k++){
 
         int root = k/local_iter;
-        row_k = (double *)malloc(num_of_vertices*sizeof(double));
 
         if(my_rank == root){
             for(int j = 0; j < num_of_vertices; j++){
