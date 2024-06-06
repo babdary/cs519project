@@ -64,6 +64,13 @@ int main(int argc, char *argv[])
         fscanf(file, "%d", &V);
         fscanf(file, "%d", &E);
 
+        if( square_length * square_length != comm_sz || V % square_length != 0)
+        {
+            printf("Invalid number of processors or matrix size.\n");
+            MPI_Abort(MPI_COMM_WORLD, 0);
+            exit(1);
+        }
+
         graph = (double *)malloc(V * V * sizeof(double));
         for (int i = 0; i < V; i++)
         {
