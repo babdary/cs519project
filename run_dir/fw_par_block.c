@@ -8,18 +8,19 @@
 
 void printSolution(double *dist, int V)
 {
-    printf("The following matrix shows the shortest distances between every pair of vertices \n");
+    FILE* outfile = fopen("out_block.txt", "w");
     for (int i = 0; i < V; i++)
     {
         for (int j = 0; j < V; j++)
         {
             if (dist[i * V + j] == INF)
-                printf("%7s ", "INF");
+                fprintf(outfile, "| %6s ", "INF");
             else
-                printf("%.1f ", dist[i * V + j]);
+                fprintf(outfile, "| %6.2f ", dist[i * V + j]);
         }
-        printf("\n");
+        fprintf(outfile, "\n");
     }
+    fclose(outfile);
 }
 
 int main(int argc, char *argv[])
