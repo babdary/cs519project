@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 #define INF 1e10
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -67,7 +68,7 @@ int main(int argc, char** argv) {
 			count = 0;
 			int indexes[V/rank_size];
 			int changes[V/rank_size];
-			for (j = (my_rank*(V/rank_size)); (j < (my_rank+1)*(V/rank_size)); j++) {
+			for (j = floor(my_rank*(V/rank_size)); (j < floor(my_rank+1)*(V/rank_size)); j++) {
                 if (graph[i][k] + graph[k][j] < graph[i][j]){
                     graph[i][j] = graph[i][k] + graph[k][j];
 					indexes[count] = j;
