@@ -6,6 +6,8 @@
 
 // Define infinity as a large number (used for initialization)
 #define INF 1e10
+//#define min(a,b) if(a<b) ? a:b
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 void writeMatrixToFile(double** matrix, int V, const char* filename) {
     FILE* outfile = fopen(filename, "w");
@@ -17,9 +19,9 @@ void writeMatrixToFile(double** matrix, int V, const char* filename) {
     for (int i = 0; i < V; i++) {
         for (int j = 0; j < V; j++) {
             if (matrix[i][j] == INF)
-                fprintf(outfile, "INF ");
+                fprintf(outfile,  "| %6s ", "INF");
             else
-                fprintf(outfile, "%.2f ", matrix[i][j]);
+                fprintf(outfile, "| %6.2f ", matrix[i][j]);
         }
         fprintf(outfile, "\n");
     }
@@ -78,9 +80,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < E; i++) {
         fscanf(ifile, "%d %d %lf", &source, &target, &weight);
         source--; target--; // Convert 1-based to 0-based index
-        if (dist[source][target] > weight) {
-            dist[source][target] = weight;
-        }
+        dist[source][target] = MIN(dist[source][target], weight);
     }
     fclose(ifile);
 
