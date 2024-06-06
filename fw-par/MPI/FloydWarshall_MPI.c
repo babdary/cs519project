@@ -1,38 +1,36 @@
-#include <iostream>
-#include <fstream>
-#include <string>
+#include <stdio.h>
+#include <stdlib.h>
 #include <mpi.h>
-#include <vector>
-#include <chrono>
-
-using namespace std;
+#include <float.h>
+#include <time.h>
 
 // Define infinity as a large number (used for initialization)
-const double INF = 1e10;
+#define INF 1e10
 
-void writeMatrixToFile(const vector<vector<double>> &matrix, int V, const string &filename) {
-    ofstream outfile(filename);
-    if (!outfile.is_open()) {
-        cerr << "Error opening output file!" << endl;
+void writeMatrixToFile(double** matrix, int V, const char* filename) {
+    FILE* outfile = fopen(filename, "w");
+    if (outfile == NULL) {
+        fprintf(stderr, "Error opening output file!\n");
         return;
     }
 
     for (int i = 0; i < V; i++) {
         for (int j = 0; j < V; j++) {
             if (matrix[i][j] == INF)
-                outfile << "INF ";
+                fprintf(outfile, "INF ");
             else
-                outfile << matrix[i][j] << " ";
+                fprintf(outfile, "%.2f ", matrix[i][j]);
         }
-        outfile << endl;
+        fprintf(outfile, "\n");
     }
 
-    outfile.close();
+    fclose(outfile);
 }
 
-int main(int argc, char** argv)
-{
-   	auto start = std::chrono::high_resolution_clock::now();
+int main(int argc, char** argv) {
+    struct timespec start, end, floyd_start, floyd_end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     MPI_Init(&argc, &argv);
     
     int rank, size;
@@ -41,78 +39,95 @@ int main(int argc, char** argv)
 
     if (argc < 2) {
         if (rank == 0) {
-            cout << "Incorrect usage. Expected usage : mpirun -np <p> ./floyd_warshall_mpi  <inputMatrix sparse matrix>" << endl;
+            printf("Incorrect usage. Expected usage: mpirun -np <p> ./floyd_warshall_mpi <inputMatrix sparse matrix>\n");
         }
         MPI_Finalize();
         return -1;
     }
 
     int V, E;
-    ifstream ifile(argv[1]);
-
-    if (!ifile) {
+    FILE* ifile = fopen(argv[1], "r");
+    if (ifile == NULL) {
         if (rank == 0) {
-            cout << "File not found." << endl;
+            printf("File not found.\n");
         }
         MPI_Finalize();
         return -1;
     }
 
-    ifile >> V >> E;
+    fscanf(ifile, "%d %d", &V, &E);
 
     if (V < size) {
-        cout << "Processes cannot be greater than vertices. Vertices: " << V << " Comm size: " << size << endl;
+        printf("Processes cannot be greater than vertices. Vertices: %d Comm size: %d\n", V, size);
         MPI_Finalize();
         return -1;
     }
-    // allocate global data
-    vector<vector<double>> dist(V, vector<double>(V, INF));
-    for (int i = 0; i < V; i++)
-        dist[i][i] = 0; //dist from each node to itself is 0
+
+    // Allocate global data
+    double** dist = (double**) malloc(V * sizeof(double*));
+    for (int i = 0; i < V; i++) {
+        dist[i] = (double*) malloc(V * sizeof(double));
+        for (int j = 0; j < V; j++) {
+            dist[i][j] = (i == j) ? 0 : INF;
+        }
+    }
 
     int source, target;
-    double weight; 
-    //store the weights in a matrix
-    //this can be read from the input file, but that's inefficent
+    double weight;
+    // Store the weights in a matrix
     for (int i = 0; i < E; i++) {
-        ifile >> source >> target >> weight;
-        dist[source - 1][target - 1] = min(weight, dist[source - 1][target - 1]); //-1 since input starts from 1 not 0
+        fscanf(ifile, "%d %d %lf", &source, &target, &weight);
+        source--; target--; // Convert 1-based to 0-based index
+        if (dist[source][target] > weight) {
+            dist[source][target] = weight;
+        }
     }
-    ifile.close();
-    // 8 + 4 -1 / 4 = 2
+    fclose(ifile);
+
     int block_size = (V + size - 1) / size;  // Calculate block size +size -1 is used to handle boundary conditions
 
-	auto floyd_start = std::chrono::high_resolution_clock::now();
+    clock_gettime(CLOCK_MONOTONIC, &floyd_start);
 
     // Allocate local data for each process
-    vector<vector<double>> local_dist(block_size, vector<double>(V, INF));
-    //
-    vector<double> local_data(block_size * (V+1), INF);
+    double** local_dist = (double**) malloc(block_size * sizeof(double*));
+    for (int i = 0; i < block_size; i++) {
+        local_dist[i] = (double*) malloc(V * sizeof(double));
+        for (int j = 0; j < V; j++) {
+            local_dist[i][j] = INF;
+        }
+    }
+
+    double* local_data = (double*) malloc(block_size * (V + 1) * sizeof(double));
     int cc = 0;
     // Distribute rows in a block cyclic manner
     for (int i = 0; i < block_size; i++) {
         int global_row = i * size + rank;
         if (global_row < V) {
-            local_dist[i] = dist[global_row];
             for (int j = 0; j < V; j++) {
-                local_data[i * V + j+cc] = dist[global_row][j];
+                local_dist[i][j] = dist[global_row][j];
+                local_data[i * V + j + cc] = dist[global_row][j];
             }
-            local_data[V+i*V+cc] = global_row;
+            local_data[V + i * V + cc] = global_row;
             cc++;
         }
     }
-    
+
     // Perform the local computation for this process's portion of the matrix
     for (int k = 0; k < V; k++) {
         // Calculate the source rank for the current k
         int root_rank = k % size;
-        
+
         // Broadcast the k-th row to all processes
-        vector<double> k_row(V, INF);
-        if ((k / size) < block_size && (k % size) == rank) {
-            k_row = local_dist[k / size];
+        double* k_row = (double*) malloc(V * sizeof(double));
+        for (int j = 0; j < V; j++) {
+            k_row[j] = INF;
         }
-        MPI_Bcast(&k_row[0], V, MPI_DOUBLE, root_rank, MPI_COMM_WORLD);
+        if ((k / size) < block_size && (k % size) == rank) {
+            for (int j = 0; j < V; j++) {
+                k_row[j] = local_dist[k / size][j];
+            }
+        }
+        MPI_Bcast(k_row, V, MPI_DOUBLE, root_rank, MPI_COMM_WORLD);
 
         for (int i = 0; i < block_size; i++) {
             int global_row = i * size + rank;
@@ -124,6 +139,7 @@ int main(int argc, char** argv)
                 }
             }
         }
+        free(k_row);
     }
 
     // Update local_data from local_dist before gathering
@@ -132,47 +148,76 @@ int main(int argc, char** argv)
         int global_row = i * size + rank;
         if (global_row < V) {
             for (int j = 0; j < V; j++) {
-                local_data[i * V + j+cc] = local_dist[i][j];
+                local_data[i * V + j + cc] = local_dist[i][j];
             }
             cc++;
         }
     }
 
     // Prepare the buffer for gathering the results
-    vector<double> global_data;
+    double* global_data = NULL;
     if (rank == 0) {
-        global_data.resize(V * (V+1), INF);
+        global_data = (double*) malloc(V * (V + 1) * sizeof(double));
+        for (int i = 0; i < V * (V + 1); i++) {
+            global_data[i] = INF;
+        }
     }
 
     // Gather the results back to the root process
-    MPI_Gather(local_data.data(), block_size * (V+1), MPI_DOUBLE, 
-               global_data.data(), block_size * (V+1), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(local_data, block_size * (V + 1), MPI_DOUBLE,
+               global_data, block_size * (V + 1), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
         // Convert the gathered 1D data into a 2D matrix
-        cc=0;
-       	auto floyd_end = std::chrono::high_resolution_clock::now();
+        cc = 0;
+        clock_gettime(CLOCK_MONOTONIC, &floyd_end);
 
-
-        vector<vector<double>> global_dist(V, vector<double>(V, INF));
+        double** global_dist = (double**) malloc(V * sizeof(double*));
         for (int i = 0; i < V; i++) {
-            //cout << "Row index: " << global_data[i*V+V+cc] << "Row: " << global_data[i * V + j] << endl;
+            global_dist[i] = (double*) malloc(V * sizeof(double));
             for (int j = 0; j < V; j++) {
-                global_dist[global_data[i*V+V+cc]][j] = global_data[i * V + j +cc];
+                global_dist[i][j] = INF;
+            }
+        }
+
+        for (int i = 0; i < V; i++) {
+            for (int j = 0; j < V; j++) {
+                global_dist[(int)global_data[i * V + V + cc]][j] = global_data[i * V + j + cc];
             }
             cc++;
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        auto elapsed_floyd = std::chrono::duration_cast<std::chrono::nanoseconds>(floyd_end - floyd_start);
+        clock_gettime(CLOCK_MONOTONIC, &end);
 
-        printf("Total Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
-        printf("Floyd Time measured: %.3f seconds.\n", elapsed_floyd.count() * 1e-9);
+        double total_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+        double floyd_time = (floyd_end.tv_sec - floyd_start.tv_sec) + (floyd_end.tv_nsec - floyd_start.tv_nsec) / 1e9;
+
+        printf("Total Time measured: %.3f seconds.\n", total_time);
+        printf("Floyd Time measured: %.3f seconds.\n", floyd_time);
 
         writeMatrixToFile(global_dist, V, "output_matrix.txt");
+
+        for (int i = 0; i < V; i++) {
+            free(global_dist[i]);
+        }
+        free(global_dist);
     }
 
     MPI_Finalize();
+
+    for (int i = 0; i < V; i++) {
+        free(dist[i]);
+    }
+    free(dist);
+
+    for (int i = 0; i < block_size; i++) {
+        free(local_dist[i]);
+    }
+    free(local_dist);
+    free(local_data);
+    if (rank == 0) {
+        free(global_data);
+    }
+
     return 0;
 }
