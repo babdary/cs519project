@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <mpi.h>
 #include <math.h>
+#include <time.h>
 
 #define INF 99999.0
 #define MIN(A, B) (A < B) ? A : B
 
 void printSolution(double *dist, int V)
 {
-    FILE* outfile = fopen("out_block.txt", "w");
+    FILE *outfile = fopen("out_block.txt", "w");
     for (int i = 0; i < V; i++)
     {
         for (int j = 0; j < V; j++)
@@ -25,6 +26,8 @@ void printSolution(double *dist, int V)
 
 int main(int argc, char *argv[])
 {
+    struct timespec start, end, floyd_start, floyd_end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     MPI_Init(&argc, &argv);
 
     FILE *file;
@@ -45,22 +48,27 @@ int main(int argc, char *argv[])
 
     MPI_Cart_coords(comm_block, my_rank, 2, coords);
 
-    coords[0] = 0; coords[1] = 1;
+    coords[0] = 0;
+    coords[1] = 1;
     MPI_Cart_sub(comm_block, coords, &comm_row);
-    coords[0] = 1; coords[1] = 0;
+    coords[0] = 1;
+    coords[1] = 0;
     MPI_Cart_sub(comm_block, coords, &comm_col);
 
     MPI_Comm_rank(comm_row, &row_rank);
     MPI_Comm_rank(comm_col, &col_rank);
 
-    if (my_rank == 0) {
+    if (my_rank == 0)
+    {
         file = fopen(argv[1], "r");
         fscanf(file, "%d", &V);
         fscanf(file, "%d", &E);
 
         graph = (double *)malloc(V * V * sizeof(double));
-        for (int i = 0; i < V; i++) {
-            for (int j = 0; j < V; j++) {
+        for (int i = 0; i < V; i++)
+        {
+            for (int j = 0; j < V; j++)
+            {
                 if (i == j)
                     graph[i * V + j] = 0.0;
                 else
@@ -70,7 +78,8 @@ int main(int argc, char *argv[])
 
         int u, v;
         double w;
-        for (int i = 0; i < E; i++) {
+        for (int i = 0; i < E; i++)
+        {
             fscanf(file, "%d %d %lf", &u, &v, &w);
             graph[(u - 1) * V + (v - 1)] = w;
         }
@@ -81,6 +90,7 @@ int main(int argc, char *argv[])
     MPI_Bcast(&V, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     local_n = V / square_length;
+    clock_gettime(CLOCK_MONOTONIC, &floyd_start);
 
     double *sendbuf = NULL;
     int *sendcounts = NULL;
@@ -162,6 +172,7 @@ int main(int argc, char *argv[])
 
     if (my_rank == 0)
     {
+        clock_gettime(CLOCK_MONOTONIC, &floyd_end);
         double *result = (double *)malloc(V * V * sizeof(double));
 
         int index = 0;
@@ -179,6 +190,13 @@ int main(int argc, char *argv[])
             }
         }
 
+        clock_gettime(CLOCK_MONOTONIC, &end);
+
+        double total_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+        double floyd_time = (floyd_end.tv_sec - floyd_start.tv_sec) + (floyd_end.tv_nsec - floyd_start.tv_nsec) / 1e9;
+
+        printf("Total Time measured: %.3f seconds.\n", total_time);
+        printf("Floyd Time measured: %.3f seconds.\n", floyd_time);
         printSolution(result, V);
 
         free(result);
