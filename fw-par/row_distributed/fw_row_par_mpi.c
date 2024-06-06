@@ -7,11 +7,13 @@
 #include <math.h>
 #include <time.h>
 
+
+
 void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matrix, int my_rank, int comm_sz){
     
     int i,j,k;
     double dist;
-    double *row_k = (double *)malloc(num_of_vertices*sizeof(double));
+    double *k_row = (double *)malloc(num_of_vertices*sizeof(double));
 
     for(k = 0; k < num_of_vertices; k++){
 
@@ -19,20 +21,20 @@ void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matri
 
         if(my_rank == root){
             for(int j = 0; j < num_of_vertices; j++){
-                row_k[j] = local_adj_matrix[(k % local_iter)* num_of_vertices +j];
+                k_row[j] = local_adj_matrix[(k % local_iter)* num_of_vertices +j];
             }
         }
-        MPI_Bcast(row_k, num_of_vertices,MPI_DOUBLE, root,MPI_COMM_WORLD);
+        MPI_Bcast(k_row, num_of_vertices,MPI_DOUBLE, root, MPI_COMM_WORLD);
         for(i = 0; i < local_iter; i++){
             for(j = 0; j < num_of_vertices; j++){
-                dist = local_adj_matrix[i * num_of_vertices + k] + row_k[j];
+                dist = local_adj_matrix[i * num_of_vertices + k] + k_row[j];
                 if(local_adj_matrix[i * num_of_vertices + j] > dist){
                     local_adj_matrix[i * num_of_vertices + j] = dist;
                 }
             }
         }
     }
-    free(row_k);
+    free(k_row);
 }
 
 int main(int argc, char *argv[])
