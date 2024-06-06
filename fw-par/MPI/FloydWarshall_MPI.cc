@@ -3,6 +3,7 @@
 #include <string>
 #include <mpi.h>
 #include <vector>
+#include <chrono>
 
 using namespace std;
 
@@ -31,6 +32,7 @@ void writeMatrixToFile(const vector<vector<double>> &matrix, int V, const string
 
 int main(int argc, char** argv)
 {
+   	auto start = std::chrono::high_resolution_clock::now();
     MPI_Init(&argc, &argv);
     
     int rank, size;
@@ -39,7 +41,7 @@ int main(int argc, char** argv)
 
     if (argc < 2) {
         if (rank == 0) {
-            cout << "Check README for usage." << endl;
+            cout << "Incorrect usage. Expected usage : mpirun -np <p> ./floyd_warshall_mpi  <inputMatrix sparse matrix>" << endl;
         }
         MPI_Finalize();
         return -1;
@@ -79,6 +81,8 @@ int main(int argc, char** argv)
     ifile.close();
     // 8 + 4 -1 / 4 = 2
     int block_size = (V + size - 1) / size;  // Calculate block size +size -1 is used to handle boundary conditions
+
+	auto floyd_start = std::chrono::high_resolution_clock::now();
 
     // Allocate local data for each process
     vector<vector<double>> local_dist(block_size, vector<double>(V, INF));
@@ -147,6 +151,7 @@ int main(int argc, char** argv)
     if (rank == 0) {
         // Convert the gathered 1D data into a 2D matrix
         cc=0;
+       	auto floyd_end = std::chrono::high_resolution_clock::now();
 
 
         vector<vector<double>> global_dist(V, vector<double>(V, INF));
@@ -158,8 +163,14 @@ int main(int argc, char** argv)
             cc++;
         }
 
-        // Write the result matrix to a file
-        writeMatrixToFile(global_dist, V, "output.txt");
+        auto end = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        auto elapsed_floyd = std::chrono::duration_cast<std::chrono::nanoseconds>(floyd_end - floyd_start);
+
+        printf("Total Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
+        printf("Floyd Time measured: %.3f seconds.\n", elapsed_floyd.count() * 1e-9);
+
+        writeMatrixToFile(global_dist, V, "output_matrix.txt");
     }
 
     MPI_Finalize();
