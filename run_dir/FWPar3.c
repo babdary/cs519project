@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
 	}
 	
 	if(my_rank == 0){
-		FILE* outfile = fopen("outputMatrix.txt", "w");
+		FILE* outfile = fopen("out_par3.txt", "w");
 
 		for (int i = 0; i < V; i++) {
 			for (int j = 0; j < V; j++) {
