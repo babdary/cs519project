@@ -11,6 +11,26 @@
 
 #define INF 1e10
 
+void writeMatrixToFile(double* matrix, int V, const char* filename) {
+    FILE* outfile = fopen(filename, "w");
+    if (outfile == NULL) {
+        fprintf(stderr, "Error opening output file!\n");
+        return;
+    }
+
+    for (int i = 0; i < V; i++) {
+        for (int j = 0; j < V; j++) {
+            if (matrix[i*V + j] == INF)
+                fprintf(outfile,  "| %6s ", "INF");
+            else
+                fprintf(outfile, "| %6.2f ", matrix[i*V + j]);
+        }
+        fprintf(outfile, "\n");
+    }
+
+    fclose(outfile);
+}
+
 void floyd_warshall(int num_of_vertices, int local_iter, double *local_adj_matrix, int my_rank, int comm_sz){
     
     int i,j,k;
@@ -115,27 +135,19 @@ int main(int argc, char *argv[])
 
 
     if(my_rank==0){
-        int i,j;
-        for(i = 0; i < num_of_vertices; i++){
-            for(j = 0; j < num_of_vertices; j++){
-                if(matrix[i* num_of_vertices +j]==INF){
-                    printf("%6s", "INF");
-                }
-                    printf("| %6.2f ", matrix[i* num_of_vertices +j]);
-            }
-            printf("|\n");
-        }
+        writeMatrixToFile(matrix, num_of_vertices, "outputMatrix.txt");
         free(matrix);
+    end = clock();
+    wall_clock_time = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Time Elapsed: %f.2\n", wall_clock_time);
+    printf("Floyd Warshall Algorithm Elapsed: %f.2\n", fw_time);
+    printf("------------------------------------------------------\n");
     }
     free(local_adj_matrix);
     MPI_Finalize();
 
 
-    end = clock();
-    wall_clock_time = ((double)(end - start)) / CLOCKS_PER_SEC;
-    printf("Time Elapsed:%f\n", wall_clock_time);
-    printf("Floyd Warshall Algorithm Elapsed: %f\n", fw_time);
-    printf("------------------------------------------------------\n");
+
     return 0;
 
 }
