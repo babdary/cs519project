@@ -118,7 +118,10 @@ int main(int argc, char *argv[])
         int i,j;
         for(i = 0; i < num_of_vertices; i++){
             for(j = 0; j < num_of_vertices; j++){
-                printf("| %lf ", matrix[i* num_of_vertices +j]);
+                if(matrix[i* num_of_vertices +j]==INF){
+                    printf("%6s", "INF");
+                }
+                    printf("| %6.2f ", matrix[i* num_of_vertices +j]);
             }
             printf("|\n");
         }
