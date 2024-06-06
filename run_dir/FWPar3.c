@@ -107,12 +107,19 @@ int main(int argc, char** argv) {
 	}
 	
 	if(my_rank == 0){
+		FILE* outfile = fopen("outputMatrix.txt", "w");
+
 		for (int i = 0; i < V; i++) {
 			for (int j = 0; j < V; j++) {
-				printf("%7f ", graph[i][j]);
+				if (graph[i][j] == INF)
+					fprintf(outfile,  "| %6s ", "INF");
+				else
+					fprintf(outfile, "| %6.2f ", graph[i][j]);
 			}
-			printf("\n");
+			fprintf(outfile, "\n");
 		}
+
+		fclose(outfile);
 	}
 	
 	MPI_Finalize();
