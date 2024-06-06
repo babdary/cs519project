@@ -1,6 +1,6 @@
 compile:
 	g++ generation_code.c -o generate_graph 
-	mpicxx -o floyd_warshall_mpi FloydWarshall_MPI.cc
+	mpicxx -o floyd_warshall_mpi FloydWarshall_MPI.c
 
 run:
 	./generate_graph 4 8
