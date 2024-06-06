@@ -10,6 +10,10 @@ int main(int argc, char** argv) {
 	clock_t start, end;
 	double cpu_time_used;
 	
+	if(my_rank == 0){
+		start = clock();
+	}
+	
 	MPI_Init(NULL, NULL);
 	int rank_size;
     MPI_Comm_size(MPI_COMM_WORLD, &rank_size);
@@ -54,10 +58,6 @@ int main(int argc, char** argv) {
         graph[source][target] = MIN(graph[source][target], weight);
     }
     fclose(ifile);
-	
-	if(my_rank == 0){
-		start = clock();
-	}
 	
 	int i, j, k, l, m;
 	int count;
