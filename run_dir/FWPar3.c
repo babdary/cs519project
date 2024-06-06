@@ -10,15 +10,16 @@ int main(int argc, char** argv) {
 	clock_t start, end;
 	double cpu_time_used;
 	
-	if(my_rank == 0){
-		start = clock();
-	}
 	
 	MPI_Init(NULL, NULL);
 	int rank_size;
     MPI_Comm_size(MPI_COMM_WORLD, &rank_size);
 	int my_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+	
+	if(my_rank == 0){
+		start = clock();
+	}
 	
 	if (argc < 2) {
         if (my_rank == 0) {
