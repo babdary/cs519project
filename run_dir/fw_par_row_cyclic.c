@@ -180,7 +180,6 @@ int main(int argc, char** argv) {
         double total_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
         double floyd_time = (floyd_end.tv_sec - floyd_start.tv_sec) + (floyd_end.tv_nsec - floyd_start.tv_nsec) / 1e9;
 
-        printf("Total Time measured: %.3f seconds.\n", total_time);
         printf("Floyd Time measured: %.3f seconds.\n", floyd_time);
 
         writeMatrixToFile(global_dist, V, "out_block_cyclic.txt");
@@ -189,6 +188,7 @@ int main(int argc, char** argv) {
             free(global_dist[i]);
         }
         free(global_dist);
+        printf("Total Time measured: %.3f seconds.\n", total_time);
     }
 
     MPI_Finalize();
