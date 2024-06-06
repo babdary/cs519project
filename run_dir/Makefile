@@ -7,4 +7,19 @@ compile:
 	mpicxx -o fw_par_3 FWPar3.c
 
 generate_inputs:
-	./generate_graph 40 80
+	./generate_graph 10000 20000
+
+run_serial:
+	./fw_ser inputMatrix.txt
+
+run_row:
+	mpirun -np 4 ./fw_par_row inputMatrix.txt
+
+run_row_cyclic:
+	mpirun -np 4 ./fw_par_row_block_cyclic inputMatrix.txt
+
+run_par_3:
+	mpirun -np 4 ./fw_par_3 inputMatrix.txt
+
+run_par_block:
+	mpirun -np 4 ./fw_par_block inputMatrix.txt
