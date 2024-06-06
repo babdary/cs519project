@@ -102,11 +102,7 @@ int main(int argc, char** argv) {
         }
     }
 	
-	if(my_rank == 0){
-		end = clock();
-		cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-		printf("time it took: %f \n", cpu_time_used);
-	}
+
 	
 	if(my_rank == 0){
 		FILE* outfile = fopen("out_par3.txt", "w");
@@ -122,6 +118,12 @@ int main(int argc, char** argv) {
 		}
 
 		fclose(outfile);
+	}
+	
+	if(my_rank == 0){
+		end = clock();
+		cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+		printf("Total Time measured: %.3f seconds.\n", cpu_time_used);
 	}
 	
 	MPI_Finalize();
