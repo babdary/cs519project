@@ -197,6 +197,9 @@ int main(int argc, char *argv[])
             }
         }
 
+      
+        printSolution(result, V);
+
         clock_gettime(CLOCK_MONOTONIC, &end);
 
         double total_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
@@ -204,7 +207,6 @@ int main(int argc, char *argv[])
 
         printf("Total Time measured: %.3f seconds.\n", total_time);
         printf("Floyd Time measured: %.3f seconds.\n", floyd_time);
-        printSolution(result, V);
 
         free(result);
         free(graph);
