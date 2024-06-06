@@ -6,7 +6,6 @@
 
 // Define infinity as a large number (used for initialization)
 #define INF 1e10
-//#define min(a,b) if(a<b) ? a:b
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 void writeMatrixToFile(double** matrix, int V, const char* filename) {
@@ -39,54 +38,55 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (argc < 2) {
-        if (rank == 0) {
-            printf("Incorrect usage. Expected usage: mpirun -np <p> ./floyd_warshall_mpi <inputMatrix sparse matrix>\n");
-        }
-        MPI_Finalize();
-        return -1;
-    }
-
     int V, E;
-    FILE* ifile = fopen(argv[1], "r");
-    if (ifile == NULL) {
-        if (rank == 0) {
+    double** dist = NULL;
+
+    if (rank == 0) {
+        if (argc < 2) {
+            printf("Incorrect usage. Expected usage: mpirun -np <p> ./floyd_warshall_mpi <inputMatrix sparse matrix>\n");
+            MPI_Finalize();
+            return -1;
+        }
+
+        FILE* ifile = fopen(argv[1], "r");
+        if (ifile == NULL) {
             printf("File not found.\n");
+            MPI_Finalize();
+            return -1;
         }
-        MPI_Finalize();
-        return -1;
-    }
 
-    fscanf(ifile, "%d %d", &V, &E);
+        fscanf(ifile, "%d %d", &V, &E);
 
-    if (V < size) {
-        printf("Processes cannot be greater than vertices. Vertices: %d Comm size: %d\n", V, size);
-        MPI_Finalize();
-        return -1;
-    }
-
-    // Allocate global data
-    double** dist = (double**) malloc(V * sizeof(double*));
-    for (int i = 0; i < V; i++) {
-        dist[i] = (double*) malloc(V * sizeof(double));
-        for (int j = 0; j < V; j++) {
-            dist[i][j] = (i == j) ? 0 : INF;
+        if (V < size) {
+            printf("Processes cannot be greater than vertices. Vertices: %d Comm size: %d\n", V, size);
+            MPI_Finalize();
+            return -1;
         }
+
+        // Allocate global data
+        dist = (double**) malloc(V * sizeof(double*));
+        for (int i = 0; i < V; i++) {
+            dist[i] = (double*) malloc(V * sizeof(double));
+            for (int j = 0; j < V; j++) {
+                dist[i][j] = (i == j) ? 0 : INF;
+            }
+        }
+
+        int source, target;
+        double weight;
+        // Store the weights in a matrix
+        for (int i = 0; i < E; i++) {
+            fscanf(ifile, "%d %d %lf", &source, &target, &weight);
+            source--; target--; // Convert 1-based to 0-based index
+            dist[source][target] = MIN(dist[source][target], weight);
+        }
+        fclose(ifile);
     }
 
-    int source, target;
-    double weight;
-    // Store the weights in a matrix
-    for (int i = 0; i < E; i++) {
-        fscanf(ifile, "%d %d %lf", &source, &target, &weight);
-        source--; target--; // Convert 1-based to 0-based index
-        dist[source][target] = MIN(dist[source][target], weight);
-    }
-    fclose(ifile);
+    // Broadcast the size of the matrix to all processes
+    MPI_Bcast(&V, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    int block_size = (V + size - 1) / size;  // Calculate block size +size -1 is used to handle boundary conditions
-
-    clock_gettime(CLOCK_MONOTONIC, &floyd_start);
+    int block_size = (V + size - 1) / size;
 
     // Allocate local data for each process
     double** local_dist = (double**) malloc(block_size * sizeof(double*));
@@ -97,20 +97,28 @@ int main(int argc, char** argv) {
         }
     }
 
-    double* local_data = (double*) malloc(block_size * (V + 1) * sizeof(double));
-    int cc = 0;
     // Distribute rows in a block cyclic manner
-    for (int i = 0; i < block_size; i++) {
-        int global_row = i * size + rank;
-        if (global_row < V) {
-            for (int j = 0; j < V; j++) {
-                local_dist[i][j] = dist[global_row][j];
-                local_data[i * V + j + cc] = dist[global_row][j];
+    if (rank == 0) {
+        for (int i = 0; i < V; i++) {
+            int target_rank = i % size;
+            if (target_rank == 0) {
+                for (int j = 0; j < V; j++) {
+                    local_dist[i / size][j] = dist[i][j];
+                }
+            } else {
+                MPI_Send(dist[i], V, MPI_DOUBLE, target_rank, 0, MPI_COMM_WORLD);
             }
-            local_data[V + i * V + cc] = global_row;
-            cc++;
+        }
+    } else {
+        for (int i = 0; i < block_size; i++) {
+            int global_row = i * size + rank;
+            if (global_row < V) {
+                MPI_Recv(local_dist[i], V, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
         }
     }
+
+    clock_gettime(CLOCK_MONOTONIC, &floyd_start);
 
     // Perform the local computation for this process's portion of the matrix
     for (int k = 0; k < V; k++) {
@@ -119,9 +127,6 @@ int main(int argc, char** argv) {
 
         // Broadcast the k-th row to all processes
         double* k_row = (double*) malloc(V * sizeof(double));
-        for (int j = 0; j < V; j++) {
-            k_row[j] = INF;
-        }
         if ((k / size) < block_size && (k % size) == rank) {
             for (int j = 0; j < V; j++) {
                 k_row[j] = local_dist[k / size][j];
@@ -133,58 +138,41 @@ int main(int argc, char** argv) {
             int global_row = i * size + rank;
             if (global_row < V) {
                 for (int j = 0; j < V; j++) {
-                    if (local_dist[i][j] > local_dist[i][k] + k_row[j]) {
-                        local_dist[i][j] = local_dist[i][k] + k_row[j];
-                    }
+                    local_dist[i][j] = MIN(local_dist[i][j], local_dist[i][k] + k_row[j]);
                 }
             }
         }
         free(k_row);
     }
 
-    // Update local_data from local_dist before gathering
-    cc = 0;
+    // Gather the results back to the root process
+    double* local_data = (double*) malloc(block_size * V * sizeof(double));
     for (int i = 0; i < block_size; i++) {
-        int global_row = i * size + rank;
-        if (global_row < V) {
-            for (int j = 0; j < V; j++) {
-                local_data[i * V + j + cc] = local_dist[i][j];
-            }
-            cc++;
+        for (int j = 0; j < V; j++) {
+            local_data[i * V + j] = local_dist[i][j];
         }
     }
 
-    // Prepare the buffer for gathering the results
     double* global_data = NULL;
     if (rank == 0) {
-        global_data = (double*) malloc(V * (V + 1) * sizeof(double));
-        for (int i = 0; i < V * (V + 1); i++) {
-            global_data[i] = INF;
-        }
+        global_data = (double*) malloc(V * V * sizeof(double));
     }
 
-    // Gather the results back to the root process
-    MPI_Gather(local_data, block_size * (V + 1), MPI_DOUBLE,
-               global_data, block_size * (V + 1), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(local_data, block_size * V, MPI_DOUBLE, global_data, block_size * V, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
         // Convert the gathered 1D data into a 2D matrix
-        cc = 0;
         clock_gettime(CLOCK_MONOTONIC, &floyd_end);
 
         double** global_dist = (double**) malloc(V * sizeof(double*));
         for (int i = 0; i < V; i++) {
             global_dist[i] = (double*) malloc(V * sizeof(double));
-            for (int j = 0; j < V; j++) {
-                global_dist[i][j] = INF;
-            }
         }
 
         for (int i = 0; i < V; i++) {
             for (int j = 0; j < V; j++) {
-                global_dist[(int)global_data[i * V + V + cc]][j] = global_data[i * V + j + cc];
+                global_dist[i][j] = global_data[i * V + j];
             }
-            cc++;
         }
 
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -205,19 +193,19 @@ int main(int argc, char** argv) {
 
     MPI_Finalize();
 
-    for (int i = 0; i < V; i++) {
-        free(dist[i]);
+    if (rank == 0) {
+        for (int i = 0; i < V; i++) {
+            free(dist[i]);
+        }
+        free(dist);
+        free(global_data);
     }
-    free(dist);
 
     for (int i = 0; i < block_size; i++) {
         free(local_dist[i]);
     }
     free(local_dist);
     free(local_data);
-    if (rank == 0) {
-        free(global_data);
-    }
 
     return 0;
 }
