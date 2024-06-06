@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
+#include <time.h>
 
 void floydWarshall(int n, double **dist) {
     for (int k = 0; k < n; k++) {
@@ -16,14 +17,16 @@ void floydWarshall(int n, double **dist) {
 
 int main() {
     FILE *file = fopen("inputMatrix.txt", "r");
-
+    if (file == NULL) {
+        fprintf(stderr, "Error: could not open input file.\n");
+        return 1;
+    }
 
     int n, m;
     fscanf(file, "%d %d", &n, &m);
 
     // Allocate memory for the distance matrix
     double **dist = (double **)malloc(n * sizeof(double *));
-
     for (int i = 0; i < n; i++) {
         dist[i] = (double *)malloc(n * sizeof(double));
     }
@@ -49,12 +52,17 @@ int main() {
 
     fclose(file);
 
+    // Measure the start time
+    clock_t start_time = clock();
+
     // Perform Floyd-Warshall algorithm
     floydWarshall(n, dist);
 
+    // Measure the end time
+    clock_t end_time = clock();
+
     // Output the result to out_ser.txt
     FILE *outfile = fopen("out_ser.txt", "w");
-
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
             if (dist[i][j] == DBL_MAX) {
@@ -65,7 +73,6 @@ int main() {
         }
         fprintf(outfile, "\n");
     }
-
     fclose(outfile);
 
     // Free allocated memory
@@ -73,6 +80,10 @@ int main() {
         free(dist[i]);
     }
     free(dist);
+
+    // Calculate and print the total runtime
+    double total_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Total Time measured: %.3lf seconds.\n", total_time);
 
     return 0;
 }
